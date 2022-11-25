@@ -44,6 +44,7 @@ import {
   PURE_CONNECTION_NAME,
 } from '@finos/legend-graph';
 import type { TextEditorPosition } from '@finos/legend-art';
+import { EditorState } from './EditorState.js';
 
 const getGrammarElementTypeLabelRegexString = (
   typeLabel: string,
@@ -58,18 +59,21 @@ const getGrammarElementTypeLabelRegexString = (
   ) // account for termination after element path
     .replace(/\$/g, '\\$'); // replace special character $ by \\$
 
-export class GrammarTextEditorState {
-  readonly editorStore: EditorStore;
-
+export class GrammarTextEditorState extends EditorState {
   graphGrammarText = '';
   currentElementLabelRegexString?: string | undefined;
   wrapText = false;
   forcedCursorPosition?: TextEditorPosition | undefined;
+  elementPath?: string | undefined;
+  elementName?: string | undefined;
 
   constructor(editorStore: EditorStore) {
+    super(editorStore);
     makeObservable(this, {
       graphGrammarText: observable,
       currentElementLabelRegexString: observable,
+      elementPath: observable,
+      elementName: observable,
       wrapText: observable,
       forcedCursorPosition: observable,
       setGraphGrammarText: action,
@@ -77,13 +81,25 @@ export class GrammarTextEditorState {
       setForcedCursorPosition: action,
       resetCurrentElementLabelRegexString: action,
       setCurrentElementLabelRegexString: action,
+      setElementName: action,
+      setElementPath: action,
     });
+  }
 
-    this.editorStore = editorStore;
+  get label(): string {
+    return this.elementName ?? 'Text Mode';
   }
 
   get currentTextGraphHash(): string {
     return hashValue(this.graphGrammarText);
+  }
+
+  setElementName(val: string | undefined): void {
+    this.elementName = val;
+  }
+
+  setElementPath(val: string | undefined): void {
+    this.elementPath = val;
   }
 
   setGraphGrammarText(code: string): void {

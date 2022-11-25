@@ -221,6 +221,7 @@ const ExplorerContextMenu = observer(
   >(function ExplorerContextMenu(props, ref) {
     const { node, nodeIsImmutable } = props;
     const editorStore = useEditorStore();
+    const isInGrammarMode = editorStore.isInGrammarTextMode;
     const applicationStore = useLegendStudioApplicationStore();
     const extraExplorerContextMenuItems = editorStore.pluginManager
       .getApplicationPlugins()
@@ -387,15 +388,18 @@ const ExplorerContextMenu = observer(
 
     return (
       <MenuContent data-testid={LEGEND_STUDIO_TEST_ID.EXPLORER_CONTEXT_MENU}>
-        <MenuContentItem onClick={buildQuery}>Query...</MenuContentItem>
+        {!isInGrammarMode && (
+          <MenuContentItem onClick={buildQuery}>Query...</MenuContentItem>
+        )}
         {extraExplorerContextMenuItems}
         {!isReadOnly && node && (
           <>
             <MenuContentItem onClick={renameElement}>Rename</MenuContentItem>
+
             <MenuContentItem onClick={removeElement}>Remove</MenuContentItem>
           </>
         )}
-        {node && (
+        {node && !isInGrammarMode && (
           <>
             {!editorStore.isInViewerMode && (
               <MenuContentItem onClick={openElementInViewerMode}>
@@ -569,6 +573,12 @@ const ExplorerDropdownMenu = observer(() => {
       editorStore.newElementState.openModal(type, _package);
 
   const elementTypes = ([PACKAGEABLE_ELEMENT_TYPE.PACKAGE] as string[])
+    .concat(
+      editorStore.isInGrammarTextMode &&
+        !editorStore.grammarModeManagerState.isInDefaultTextMode
+        ? ([PACKAGEABLE_ELEMENT_TYPE.PACKAGEABLE_ELEMENT] as string[])
+        : [],
+    )
     .concat(editorStore.getSupportedElementTypes())
     .filter(
       // NOTE: we can only create package in root
@@ -676,7 +686,11 @@ const ExplorerTrees = observer(() => {
   return (
     <ContextMenu
       className="explorer__content"
-      disabled={isInGrammarTextMode || isInViewerMode}
+      disabled={
+        isInViewerMode ||
+        (editorStore.isInGrammarTextMode &&
+          !editorStore.grammarModeManagerState.isInDefaultTextMode)
+      }
       content={<ExplorerContextMenu />}
       menuProps={{ elevation: 7 }}
     >
@@ -693,7 +707,9 @@ const ExplorerTrees = observer(() => {
                 onNodeSelect={onNodeSelect}
                 getChildNodes={getChildNodes}
                 innerProps={{
-                  disableContextMenu: isInGrammarTextMode,
+                  disableContextMenu:
+                    isInGrammarTextMode &&
+                    editorStore.grammarModeManagerState.isInDefaultTextMode,
                 }}
               />
               <ElementRenamer />
@@ -789,7 +805,6 @@ const ExplorerTrees = observer(() => {
 const ProjectExplorerActionPanel = observer((props: { disabled: boolean }) => {
   const { disabled } = props;
   const editorStore = useEditorStore();
-  const isInGrammarMode = editorStore.isInGrammarTextMode;
   const showSearchModal = (): void =>
     editorStore.searchElementCommandState.open();
   // Explorer tree
@@ -834,7 +849,8 @@ const ProjectExplorerActionPanel = observer((props: { disabled: boolean }) => {
           title="New Element... (Ctrl + Shift + N)"
           disabled={
             disabled ||
-            isInGrammarMode ||
+            (editorStore.isInGrammarTextMode &&
+              editorStore.grammarModeManagerState.isInDefaultTextMode) ||
             (selectedTreeNode &&
               isElementReadOnly(selectedTreeNode.packageableElement))
           }

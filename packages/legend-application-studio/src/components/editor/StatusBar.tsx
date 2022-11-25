@@ -22,12 +22,18 @@ import {
   FireIcon,
   CodeBranchIcon,
   TerminalIcon,
-  HackerIcon,
+  SingleFileIcon,
+  MultiFileIcon,
   BrushIcon,
   CloudUploadIcon,
   AssistantIcon,
   ErrorIcon,
   WarningIcon,
+  MenuContent,
+  MenuContentItem,
+  MenuContentItemLabel,
+  MoreVerticalIcon,
+  DropdownMenu,
 } from '@finos/legend-art';
 import { LEGEND_STUDIO_TEST_ID } from '../LegendStudioTestID.js';
 import { ACTIVITY_MODE, AUX_PANEL_MODE } from '../../stores/EditorConfig.js';
@@ -136,6 +142,18 @@ export const StatusBar = observer((props: { actionsDisabled: boolean }) => {
   const handleTextModeClick = applicationStore.guardUnhandledError(() =>
     flowResult(editorStore.toggleTextMode()),
   );
+  const handleSingleFileTextModeClick = (): void => {
+    editorStore.grammarModeManagerState.setIsInDefaultTextMode(true);
+    flowResult(editorStore.toggleTextMode()).catch(
+      applicationStore.alertUnhandledError,
+    );
+  };
+  const handleMultiFileTextModeClick = (): void => {
+    editorStore.grammarModeManagerState.setIsInDefaultTextMode(false);
+    flowResult(editorStore.toggleTextMode()).catch(
+      applicationStore.alertUnhandledError,
+    );
+  };
   const compile = applicationStore.guardUnhandledError(
     editorStore.isInGrammarTextMode
       ? () => flowResult(editorStore.graphState.globalCompileInTextMode())
@@ -151,6 +169,11 @@ export const StatusBar = observer((props: { actionsDisabled: boolean }) => {
   );
   const toggleAssistant = (): void =>
     applicationStore.assistantService.toggleAssistant();
+  const toggleDefaultTextMode = (): void => {
+    flowResult(editorStore.graphState.toggleDefaultTextMode()).catch(
+      editorStore.applicationStore.alertUnhandledError,
+    );
+  };
 
   return (
     <div
@@ -375,20 +398,61 @@ export const StatusBar = observer((props: { actionsDisabled: boolean }) => {
         >
           <TerminalIcon />
         </button>
+        {editorStore.isInFormMode && (
+          <DropdownMenu
+            className="editor__status-bar__file-icon"
+            disabled={actionsDisabled}
+            title="Show Options Menu..."
+            content={
+              <MenuContent>
+                <MenuContentItem onClick={handleSingleFileTextModeClick}>
+                  <MenuContentItemLabel>
+                    Switch to single file text mode...
+                  </MenuContentItemLabel>
+                </MenuContentItem>
+                <MenuContentItem onClick={handleMultiFileTextModeClick}>
+                  <MenuContentItemLabel>
+                    Switch to multiple file text mode...
+                  </MenuContentItemLabel>
+                </MenuContentItem>
+              </MenuContent>
+            }
+            menuProps={{
+              anchorOrigin: { vertical: 'top', horizontal: 'right' },
+              transformOrigin: { vertical: 'bottom', horizontal: 'center' },
+              elevation: 0,
+            }}
+          >
+            <MoreVerticalIcon className="query-builder__icon__more-options" />
+          </DropdownMenu>
+        )}
+        {editorStore.isInGrammarTextMode && (
+          <button
+            className="editor__status-bar__file-icon"
+            disabled={actionsDisabled}
+            onClick={toggleDefaultTextMode}
+            tabIndex={-1}
+            title={`Switch to ${
+              editorStore.grammarModeManagerState.isInDefaultTextMode
+                ? 'multi file'
+                : 'single file'
+            } text mode...`}
+          >
+            {editorStore.grammarModeManagerState.isInDefaultTextMode ? (
+              <SingleFileIcon />
+            ) : (
+              <MultiFileIcon />
+            )}
+          </button>
+        )}
         <button
-          className={clsx(
-            'editor__status-bar__action editor__status-bar__action__toggler',
-            {
-              'editor__status-bar__action editor__status-bar__action__toggler--active':
-                editorStore.isInGrammarTextMode,
-            },
-          )}
+          className="editor__status-bar__studio-mode"
           disabled={actionsDisabled}
           onClick={handleTextModeClick}
           tabIndex={-1}
           title="Toggle text mode (F8)"
         >
-          <HackerIcon />
+          {editorStore.isInFormMode ? 'Form Mode' : 'Text Mode'}
         </button>
         <button
           className={clsx(

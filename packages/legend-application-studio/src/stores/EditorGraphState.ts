@@ -93,6 +93,7 @@ import {
   type CompilationWarning,
   type TextCompilationResult,
   type CompilationResult,
+  INTERNAL__PackageableElement,
 } from '@finos/legend-graph';
 import {
   ActionAlertActionType,
@@ -105,6 +106,8 @@ import { PACKAGEABLE_ELEMENT_TYPE } from './shared/ModelClassifierUtils.js';
 import { GlobalTestRunnerState } from './sidebar-state/testable/GlobalTestRunnerState.js';
 import { LEGEND_STUDIO_APP_EVENT } from './LegendStudioAppEvent.js';
 import { ExplorerTreeState } from './ExplorerTreeState.js';
+import { GrammarTextEditorState } from './editor-state/GrammarTextEditorState.js';
+import { GrammarModeSearchState } from './GrammarModeSearchState.js';
 
 export enum GraphBuilderStatus {
   SUCCEEDED = 'SUCCEEDED',
@@ -174,6 +177,7 @@ export class EditorGraphState {
       globalCompileInFormMode: flow,
       globalCompileInTextMode: flow,
       leaveTextMode: flow,
+      toggleDefaultTextMode: flow,
       updateGraphAndApplicationInFormMode: flow,
       updateGraphAndApplicationInTextMode: flow,
       updateGenerationGraphAndApplication: flow,
@@ -218,7 +222,8 @@ export class EditorGraphState {
           this.editorStore.changeDetectionState.currentGraphHash) ||
       (this.editorStore.isInGrammarTextMode &&
         this.mostRecentTextModeCompilationGraphHash !==
-          this.editorStore.grammarTextEditorState.currentTextGraphHash)
+          this.editorStore.grammarModeManagerState.grammarTextEditorState
+            .currentTextGraphHash)
     );
   }
 
@@ -444,13 +449,9 @@ export class EditorGraphState {
           `Can't build graph. Redirected to text mode for debugging. Error: ${error.message}`,
         );
         try {
-          const editorGrammar =
-            (yield this.editorStore.graphManagerState.graphManager.entitiesToPureCode(
-              entities,
-            )) as string;
           yield flowResult(
-            this.editorStore.grammarTextEditorState.setGraphGrammarText(
-              editorGrammar,
+            this.editorStore.grammarModeManagerState.setGraphGrammarFromEntites(
+              entities,
             ),
           );
         } catch (error2) {
@@ -654,11 +655,9 @@ export class EditorGraphState {
             'Compilation failed and error cannot be located in form mode. Redirected to text mode for debugging.',
         );
         try {
-          const code =
-            (yield this.editorStore.graphManagerState.graphManager.graphToPureCode(
-              this.editorStore.graphManagerState.graph,
-            )) as string;
-          this.editorStore.grammarTextEditorState.setGraphGrammarText(code);
+          yield flowResult(
+            this.editorStore.grammarModeManagerState.setGraphGrammar(),
+          );
         } catch (error2) {
           assertErrorThrown(error2);
           this.editorStore.applicationStore.notifyWarning(
@@ -689,6 +688,117 @@ export class EditorGraphState {
     }
   }
 
+  *toggleDefaultTextMode(): GeneratorFn<void> {
+    this.editorStore.grammarModeManagerState.grammarModeSearchState =
+      new GrammarModeSearchState(this.editorStore);
+    if (this.editorStore.isInGrammarTextMode) {
+      if (this.checkIfApplicationUpdateOperationIsRunning()) {
+        return;
+      }
+      try {
+        this.editorStore.applicationStore.setBlockingAlert({
+          message: `Compiling graph before switching to ${
+            this.editorStore.grammarModeManagerState.isInDefaultTextMode
+              ? 'multi file'
+              : 'single file'
+          } text mode...`,
+          showLoading: true,
+        });
+        this.isRunningGlobalCompile = true;
+        this.clearProblems();
+
+        const compilationResult = (yield flowResult(
+          this.editorStore.grammarModeManagerState.compileText(),
+        )) as TextCompilationResult;
+
+        const entities = compilationResult.entities;
+        this.warnings = compilationResult.warnings
+          ? this.TEMPORARY__removeDependencyProblems(compilationResult.warnings)
+          : [];
+
+        yield flowResult(this.updateGraphAndApplicationInTextMode(entities));
+
+        // Remove `SectionIndex when computing changes in text mode as engine after
+        // transforming grammarToJson would return `SectionIndex` which is not
+        // required to do change detection.
+        const entitiesWithoutSectionIndex =
+          this.editorStore.graphManagerState.graphManager.getElementEntities(
+            entities,
+          );
+        yield flowResult(
+          this.editorStore.changeDetectionState.computeLocalChangesInTextMode(
+            entitiesWithoutSectionIndex,
+          ),
+        );
+        this.editorStore.grammarModeManagerState.setIsInDefaultTextMode(
+          !this.editorStore.grammarModeManagerState.isInDefaultTextMode,
+        );
+        this.editorStore.applicationStore.setBlockingAlert({
+          message: `Leaving ${
+            this.editorStore.grammarModeManagerState.isInDefaultTextMode
+              ? 'multi file'
+              : 'single file'
+          } text mode and rebuilding graph...`,
+          showLoading: true,
+        });
+        yield flowResult(
+          this.editorStore.grammarModeManagerState.setGraphGrammarFromEntites(
+            entitiesWithoutSectionIndex,
+          ),
+        );
+      } catch (error) {
+        assertErrorThrown(error);
+        if (this.editorStore.graphManagerState.graphBuildState.hasFailed) {
+          // TODO: when we support showing multiple notification, we can split this into 2 messages
+          this.editorStore.applicationStore.notifyWarning(
+            `Can't build graph, please resolve compilation error before leaving ${
+              this.editorStore.grammarModeManagerState.isInDefaultTextMode
+                ? 'single file'
+                : 'multi file'
+            } text mode. Compilation failed with error: ${error.message}`,
+          );
+        } else {
+          this.editorStore.applicationStore.notifyWarning(
+            `Compilation failed: ${error.message}`,
+          );
+          this.editorStore.applicationStore.setActionAlertInfo({
+            message: 'Project is not in a compiled state',
+            prompt:
+              'All changes made since the last time the graph was built successfully will be lost',
+            type: ActionAlertType.CAUTION,
+            actions: [
+              {
+                label: 'Discard Changes',
+                handler: () => {
+                  this.editorStore.grammarModeManagerState.setIsInDefaultTextMode(
+                    !this.editorStore.grammarModeManagerState
+                      .isInDefaultTextMode,
+                  );
+                  flowResult(
+                    this.editorStore.grammarModeManagerState.setGraphGrammar(),
+                  ).catch(
+                    this.editorStore.applicationStore.alertUnhandledError,
+                  );
+                },
+                type: ActionAlertActionType.PROCEED_WITH_CAUTION,
+              },
+              {
+                label: 'Stay',
+                default: true,
+                type: ActionAlertActionType.PROCEED,
+              },
+            ],
+          });
+        }
+        this.editorStore.applicationStore.setBlockingAlert(undefined);
+        return;
+      } finally {
+        this.isRunningGlobalCompile = false;
+      }
+      this.editorStore.applicationStore.setBlockingAlert(undefined);
+    }
+  }
+
   // TODO: when we support showing multiple notifications, we can take this `suppressCompilationFailureMessage` out as
   // we can show the transition between form mode and text mode warning and the compilation failure warning at the same time
   *globalCompileInTextMode(options?: {
@@ -710,7 +820,8 @@ export class EditorGraphState {
     }
 
     const currentGraphHash =
-      this.editorStore.grammarTextEditorState.currentTextGraphHash;
+      this.editorStore.grammarModeManagerState.grammarTextEditorState
+        .currentTextGraphHash;
 
     try {
       this.isRunningGlobalCompile = true;
@@ -719,11 +830,9 @@ export class EditorGraphState {
         this.editorStore.setActiveAuxPanelMode(AUX_PANEL_MODE.CONSOLE);
       }
 
-      const compilationResult =
-        (yield this.editorStore.graphManagerState.graphManager.compileText(
-          this.editorStore.grammarTextEditorState.graphGrammarText,
-          this.editorStore.graphManagerState.graph,
-        )) as TextCompilationResult;
+      const compilationResult = (yield flowResult(
+        this.editorStore.grammarModeManagerState.compileText(),
+      )) as TextCompilationResult;
 
       const entities = compilationResult.entities;
       this.mostRecentTextModeCompilationGraphHash = currentGraphHash;
@@ -763,10 +872,18 @@ export class EditorGraphState {
       if (error instanceof EngineError) {
         this.error = error;
         if (error.sourceInformation) {
-          this.editorStore.grammarTextEditorState.setForcedCursorPosition({
-            lineNumber: error.sourceInformation.startLine,
-            column: error.sourceInformation.startColumn,
-          });
+          if (this.editorStore.grammarModeManagerState.isInDefaultTextMode) {
+            this.editorStore.grammarModeManagerState.grammarTextEditorState.setForcedCursorPosition(
+              {
+                lineNumber: error.sourceInformation.startLine,
+                column: error.sourceInformation.startColumn,
+              },
+            );
+          } else {
+            this.editorStore.grammarModeManagerState.openGrammarTextEditor(
+              error.sourceInformation,
+            );
+          }
         }
       }
       if (
@@ -798,10 +915,8 @@ export class EditorGraphState {
         showLoading: true,
       });
       try {
-        const compilationResult =
-          (yield this.editorStore.graphManagerState.graphManager.compileText(
-            this.editorStore.grammarTextEditorState.graphGrammarText,
-            this.editorStore.graphManagerState.graph,
+        const compilationResult = (yield flowResult(
+          this.editorStore.grammarModeManagerState.compileText(
             // surpress the modal to reveal error properly in the text editor
             // if the blocking modal is not dismissed, the edior will not be able to gain focus as modal has a focus trap
             // therefore, the editor will not be able to get the focus
@@ -809,7 +924,8 @@ export class EditorGraphState {
               onError: () =>
                 this.editorStore.applicationStore.setBlockingAlert(undefined),
             },
-          )) as TextCompilationResult;
+          ),
+        )) as TextCompilationResult;
 
         this.warnings = compilationResult.warnings
           ? this.TEMPORARY__removeDependencyProblems(compilationResult.warnings)
@@ -818,30 +934,33 @@ export class EditorGraphState {
           message: 'Leaving text mode and rebuilding graph...',
           showLoading: true,
         });
+        this.editorStore.grammarModeManagerState.grammarTextEditorState.setGraphGrammarText(
+          '',
+        );
+        this.editorStore.grammarModeManagerState.grammarTextEditorState.resetCurrentElementLabelRegexString();
+        yield flowResult(
+          this.editorStore.setGraphEditMode(GRAPH_EDITOR_MODE.FORM),
+        );
         yield flowResult(
           this.updateGraphAndApplicationInFormMode(compilationResult.entities),
         );
         this.mostRecentFormModeCompilationGraphHash =
           this.editorStore.changeDetectionState.getCurrentGraphHash();
-        this.editorStore.grammarTextEditorState.setGraphGrammarText('');
-        this.editorStore.grammarTextEditorState.resetCurrentElementLabelRegexString();
-        yield flowResult(
-          this.editorStore.setGraphEditMode(GRAPH_EDITOR_MODE.FORM),
-        );
-        if (this.editorStore.tabManagerState.currentTab) {
-          this.editorStore.tabManagerState.openTab(
-            this.editorStore.tabManagerState.currentTab,
-          );
-        }
       } catch (error) {
         assertErrorThrown(error);
-        this.mostRecentFormModeCompilationGraphHash =
-          this.editorStore.changeDetectionState.getCurrentGraphHash();
         if (error instanceof EngineError && error.sourceInformation) {
-          this.editorStore.grammarTextEditorState.setForcedCursorPosition({
-            lineNumber: error.sourceInformation.startLine,
-            column: error.sourceInformation.startColumn,
-          });
+          if (this.editorStore.grammarModeManagerState.isInDefaultTextMode) {
+            this.editorStore.grammarModeManagerState.grammarTextEditorState.setForcedCursorPosition(
+              {
+                lineNumber: error.sourceInformation.startLine,
+                column: error.sourceInformation.startColumn,
+              },
+            );
+          } else {
+            this.editorStore.grammarModeManagerState.openGrammarTextEditor(
+              error.sourceInformation,
+            );
+          }
         }
         this.editorStore.applicationStore.log.error(
           LogEvent.create(GRAPH_MANAGER_EVENT.COMPILATION_FAILURE),
@@ -871,12 +990,18 @@ export class EditorGraphState {
                   ).catch(
                     this.editorStore.applicationStore.alertUnhandledError,
                   );
+                  this.mostRecentFormModeCompilationGraphHash =
+                    this.editorStore.changeDetectionState.getCurrentGraphHash();
                 },
                 type: ActionAlertActionType.PROCEED_WITH_CAUTION,
               },
               {
                 label: 'Stay',
                 default: true,
+                handler: () => {
+                  this.mostRecentTextModeCompilationGraphHash =
+                    this.editorStore.grammarModeManagerState.grammarTextEditorState.currentTextGraphHash;
+                },
                 type: ActionAlertActionType.PROCEED,
               },
             ],
@@ -1099,8 +1224,8 @@ export class EditorGraphState {
        */
       this.editorStore.tabManagerState.recoverTabs(
         openedTabPaths,
-        currentTabState,
         currentTabElementPath,
+        currentTabState,
         true,
       );
 
@@ -1202,26 +1327,17 @@ export class EditorGraphState {
       /**
        * Backup and editor states info before resetting. Here we store the element paths of the
        * elements editors as element paths don't refer to the actual graph. We can find the element
-       * from the new graph that is built by using element path and can reprocess the element editor states.
-       * The other kind of editors we reprocess are file generation editors, we store them as is as they don't
-       * hold any reference to the actual graph.
+       * from the new graph that is built by using element path and can reprocess the grammar editor states.
        */
       const openedTabPaths: string[] = [];
       this.editorStore.tabManagerState.tabs.forEach((state: TabState) => {
-        if (state instanceof ElementEditorState) {
+        if (state instanceof GrammarTextEditorState && state.elementPath) {
           openedTabPaths.push(state.elementPath);
         }
       });
-      // Only stores editor state for file generation editors as they don't hold any references to the
-      // actual graph.
-      const currentTabState =
-        this.editorStore.tabManagerState.currentTab instanceof
-        ElementEditorState
-          ? undefined
-          : this.editorStore.tabManagerState.currentTab;
       const currentTabElementPath =
         this.editorStore.tabManagerState.currentTab instanceof
-        ElementEditorState
+        GrammarTextEditorState
           ? this.editorStore.tabManagerState.currentTab.elementPath
           : undefined;
       /**
@@ -1276,9 +1392,7 @@ export class EditorGraphState {
        */
       this.editorStore.tabManagerState.recoverTabs(
         openedTabPaths,
-        currentTabState,
         currentTabElementPath,
-        false,
       );
 
       this.editorStore.applicationStore.log.info(
@@ -1351,8 +1465,8 @@ export class EditorGraphState {
       this.editorStore.explorerTreeState.reprocess();
       this.editorStore.tabManagerState.recoverTabs(
         openedTabEditorPaths,
-        currentTabState,
         currentTabElementPath,
+        currentTabState,
         true,
       );
     } catch (error) {
@@ -1544,6 +1658,8 @@ export class EditorGraphState {
       return PACKAGEABLE_ELEMENT_TYPE.PRIMITIVE;
     } else if (element instanceof Package) {
       return PACKAGEABLE_ELEMENT_TYPE.PACKAGE;
+    } else if (element instanceof INTERNAL__PackageableElement) {
+      return PACKAGEABLE_ELEMENT_TYPE.PACKAGEABLE_ELEMENT;
     } else if (element instanceof Class) {
       return PACKAGEABLE_ELEMENT_TYPE.CLASS;
     } else if (element instanceof Association) {
