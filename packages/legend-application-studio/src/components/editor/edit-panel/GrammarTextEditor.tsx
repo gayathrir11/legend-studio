@@ -39,6 +39,11 @@ import {
   moveCursorToPosition,
   MenuContent,
   MenuContentItem,
+  CaretDownIcon,
+  CheckIcon,
+  DropdownMenu,
+  MenuContentItemIcon,
+  MenuContentItemLabel,
 } from '@finos/legend-art';
 import {
   TAB_SIZE,
@@ -63,6 +68,7 @@ import { flowResult } from 'mobx';
 import { useEditorStore } from '../EditorStoreProvider.js';
 import {
   guaranteeNonNullable,
+  guaranteeType,
   hasWhiteSpace,
   isNonNullable,
 } from '@finos/legend-shared';
@@ -147,6 +153,64 @@ import {
   NewFileGenerationDriver,
   NewDataElementDriver,
 } from '../../../stores/editor/NewElementState.js';
+
+export const GrammarTextEditorPanelActions = observer(
+  (props: { grammarTextEditorState: GrammarTextEditorState | undefined }) => {
+    const { grammarTextEditorState } = props;
+    const editorStore = useEditorStore();
+    const grammarModeManagerState = editorStore.grammarModeManagerState;
+    const toggleWordWrap = (): void =>
+      grammarTextEditorState?.setWrapText(!grammarTextEditorState?.wrapText);
+    const toggleDefaultTextMode = (): void => {
+      flowResult(editorStore.graphState.toggleDefaultTextMode()).catch(
+        editorStore.applicationStore.alertUnhandledError,
+      );
+    };
+
+    return (
+      <div className="text-editor__header__content__actions">
+        <DropdownMenu
+          className="text-editor__header__custom-action"
+          title="Show More Options..."
+          content={
+            <MenuContent>
+              {grammarTextEditorState && (
+                <MenuContentItem onClick={toggleWordWrap}>
+                  <MenuContentItemIcon>
+                    {grammarTextEditorState.wrapText ? <CheckIcon /> : null}
+                  </MenuContentItemIcon>
+                  <MenuContentItemLabel className="text-editor__header__menu-content">
+                    Word wrap
+                  </MenuContentItemLabel>
+                </MenuContentItem>
+              )}
+              <MenuContentItem onClick={toggleDefaultTextMode}>
+                <MenuContentItemIcon>
+                  {!grammarModeManagerState.isInDefaultTextMode ? (
+                    <CheckIcon />
+                  ) : null}
+                </MenuContentItemIcon>
+                <MenuContentItemLabel className="text-editor__header__menu-content">
+                  Show grammar in multiple file mode
+                </MenuContentItemLabel>
+              </MenuContentItem>
+            </MenuContent>
+          }
+          menuProps={{
+            anchorOrigin: { vertical: 'bottom', horizontal: 'right' },
+            transformOrigin: { vertical: 'top', horizontal: 'right' },
+            elevation: 7,
+          }}
+        >
+          <div className="text-editor__header__custom-action__label">
+            More options
+          </div>
+          <CaretDownIcon className="text-editor__header__custom-action__icon" />
+        </DropdownMenu>
+      </div>
+    );
+  },
+);
 
 export const GrammarTextEditorHeaderTabContextMenu = observer(
   forwardRef<HTMLDivElement, { children?: React.ReactNode }>(
@@ -807,9 +871,6 @@ export const GrammarTextEditor = observer(
       flowResult(editorStore.toggleTextMode()),
     );
 
-    const toggleWordWrap = (): void =>
-      grammarTextEditorState.setWrapText(!grammarTextEditorState.wrapText);
-
     const { ref, width, height } = useResizeDetector<HTMLDivElement>();
 
     useEffect(() => {
@@ -1194,19 +1255,9 @@ export const GrammarTextEditor = observer(
               </ContextMenu>
             </div>
             <div className="edit-panel__header__actions">
-              <button
-                className={clsx('edit-panel__header__action', {
-                  'edit-panel__header__action--active':
-                    grammarTextEditorState.wrapText,
-                })}
-                onClick={toggleWordWrap}
-                tabIndex={-1}
-                title={`[${
-                  grammarTextEditorState.wrapText ? 'on' : 'off'
-                }] Toggle word wrap`}
-              >
-                <WordWrapIcon className="edit-panel__icon__word-wrap" />
-              </button>
+              <GrammarTextEditorPanelActions
+                grammarTextEditorState={grammarTextEditorState}
+              />
             </div>
           </div>
         )}

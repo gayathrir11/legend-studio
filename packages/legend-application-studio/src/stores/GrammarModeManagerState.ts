@@ -33,7 +33,7 @@ import {
 export class GrammarModeManagerState {
   readonly editorStore: EditorStore;
 
-  isInDefaultTextMode = false;
+  isInDefaultTextMode = true;
   grammarTextEditorState: GrammarTextEditorState;
   currentGrammarElements: Map<string, string> = new Map<string, string>();
   grammarModeSearchState: GrammarModeSearchState;

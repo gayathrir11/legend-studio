@@ -187,8 +187,6 @@ export {
   VscRegex as RegexIcon,
   VscVersions as VersionsIcon,
   VscCaseSensitive as CaseSensitiveIcon,
-  VscFile as SingleFileIcon,
-  VscFiles as MultiFileIcon,
 } from 'react-icons/vsc';
 export {
   GoChevronDown as ChevronDownIcon,

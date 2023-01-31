@@ -18,7 +18,7 @@ import { TabManager, type TabState } from '@finos/legend-application';
 import { ContextMenu, clsx, WordWrapIcon } from '@finos/legend-art';
 import { observer } from 'mobx-react-lite';
 import { GrammarTextEditorState } from '../../stores/editor-state/GrammarTextEditorState.js';
-import { GrammarTextEditor } from './edit-panel/GrammarTextEditor.js';
+import { GrammarTextEditor, GrammarTextEditorPanelActions } from './edit-panel/GrammarTextEditor.js';
 import { useEditorStore } from './EditorStoreProvider.js';
 
 export const GrammarEditPanel = observer(() => {
@@ -40,17 +40,8 @@ export const GrammarEditPanel = observer(() => {
     return null;
   };
 
-  const toggleWordWrap =
-    (grammarTextEditorState: GrammarTextEditorState): React.MouseEventHandler =>
-    (event): void =>
-      grammarTextEditorState.setWrapText(!grammarTextEditorState.wrapText);
-
   const renderTab = (editorState: TabState): React.ReactNode | undefined =>
     editorState.label;
-
-  if (!currentEditorState) {
-    return <></>;
-  }
 
   return (
     <div className="panel edit-panel">
@@ -62,26 +53,11 @@ export const GrammarEditPanel = observer(() => {
           />
         </div>
         <div className="edit-panel__header__actions">
-          {editorStore.tabManagerState.currentTab instanceof
-            GrammarTextEditorState && (
-            <button
-              className={clsx('edit-panel__header__action', {
-                'edit-panel__header__action--active':
-                  editorStore.tabManagerState.currentTab.wrapText,
-              })}
-              onClick={toggleWordWrap(editorStore.tabManagerState.currentTab)}
-              tabIndex={-1}
-              title={`[${
-                editorStore.tabManagerState.currentTab.wrapText ? 'on' : 'off'
-              }] Toggle word wrap`}
-            >
-              <WordWrapIcon className="edit-panel__icon__word-wrap" />
-            </button>
-          )}
+          <GrammarTextEditorPanelActions grammarTextEditorState={currentEditorState} />
         </div>
       </ContextMenu>
       <div
-        key={currentEditorState.uuid}
+        key={currentEditorState?.uuid}
         className="panel__content edit-panel__content"
       >
         {renderActiveElementTab()}
