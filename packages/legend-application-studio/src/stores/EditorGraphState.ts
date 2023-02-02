@@ -1331,14 +1331,14 @@ export class EditorGraphState {
        */
       const openedTabPaths: string[] = [];
       this.editorStore.tabManagerState.tabs.forEach((state: TabState) => {
-        if (state instanceof GrammarTextEditorState && state.elementPath) {
-          openedTabPaths.push(state.elementPath);
+        if (state instanceof GrammarTextEditorState && state.element) {
+          openedTabPaths.push(state.element.path);
         }
       });
       const currentTabElementPath =
         this.editorStore.tabManagerState.currentTab instanceof
         GrammarTextEditorState
-          ? this.editorStore.tabManagerState.currentTab.elementPath
+          ? this.editorStore.tabManagerState.currentTab.element?.path
           : undefined;
       /**
        * We remove the current editor state so that we no longer let React displays the element that belongs to the old graph

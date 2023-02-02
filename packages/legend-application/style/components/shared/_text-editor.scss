@@ -68,4 +68,10 @@
     overflow: hidden;
     white-space: nowrap;
   }
+
+  &__incorrect--element--path {
+    text-decoration-color: var(--color-red-180);
+    background-color: var(--color-red-180);
+    text-decoration: underline dotted;
+  }
 }

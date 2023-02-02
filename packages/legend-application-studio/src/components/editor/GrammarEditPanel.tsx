@@ -15,10 +15,13 @@
  */
 
 import { TabManager, type TabState } from '@finos/legend-application';
-import { ContextMenu, clsx, WordWrapIcon } from '@finos/legend-art';
+import { ContextMenu } from '@finos/legend-art';
 import { observer } from 'mobx-react-lite';
 import { GrammarTextEditorState } from '../../stores/editor-state/GrammarTextEditorState.js';
-import { GrammarTextEditor, GrammarTextEditorPanelActions } from './edit-panel/GrammarTextEditor.js';
+import {
+  GrammarTextEditor,
+  GrammarTextEditorPanelActions,
+} from './edit-panel/GrammarTextEditor.js';
 import { useEditorStore } from './EditorStoreProvider.js';
 
 export const GrammarEditPanel = observer(() => {
@@ -47,13 +50,17 @@ export const GrammarEditPanel = observer(() => {
     <div className="panel edit-panel">
       <ContextMenu disabled={true} className="panel__header edit-panel__header">
         <div className="edit-panel__header__tabs">
-          <TabManager
-            tabManagerState={editorStore.tabManagerState}
-            tabRenderer={renderTab}
-          />
+          {currentEditorState && (
+            <TabManager
+              tabManagerState={editorStore.tabManagerState}
+              tabRenderer={renderTab}
+            />
+          )}
         </div>
         <div className="edit-panel__header__actions">
-          <GrammarTextEditorPanelActions grammarTextEditorState={currentEditorState} />
+          <GrammarTextEditorPanelActions
+            grammarTextEditorState={currentEditorState}
+          />
         </div>
       </ContextMenu>
       <div

@@ -23,7 +23,10 @@ import { type GeneratorFn, guaranteeNonNullable } from '@finos/legend-shared';
 import type { Entity } from '@finos/legend-storage';
 import { action, flow, flowResult, makeObservable, observable } from 'mobx';
 import { getCodeSnippet } from '../components/editor/edit-panel/GrammarTextEditor.js';
-import { GrammarTextEditorState } from './editor-state/GrammarTextEditorState.js';
+import {
+  GrammarTextEditorState,
+  getRegexStringForElement,
+} from './editor-state/GrammarTextEditorState.js';
 import type { EditorStore } from './EditorStore.js';
 import {
   SearchResultSourceInformation,
@@ -33,7 +36,7 @@ import {
 export class GrammarModeManagerState {
   readonly editorStore: EditorStore;
 
-  isInDefaultTextMode = true;
+  isInDefaultTextMode = false;
   grammarTextEditorState: GrammarTextEditorState;
   currentGrammarElements: Map<string, string> = new Map<string, string>();
   grammarModeSearchState: GrammarModeSearchState;
@@ -72,7 +75,7 @@ export class GrammarModeManagerState {
       this.editorStore.tabManagerState.tabs.forEach((state) => {
         if (state instanceof GrammarTextEditorState) {
           hashIndexes.set(
-            guaranteeNonNullable(state.elementPath),
+            guaranteeNonNullable(state.element).path,
             state.currentTextGraphHash,
           );
         }
@@ -88,15 +91,13 @@ export class GrammarModeManagerState {
     if (grammarText) {
       const grammarEditorState = new GrammarTextEditorState(this.editorStore);
       grammarEditorState.setGraphGrammarText(grammarText);
-      grammarEditorState.setElementName(element.name);
-      grammarEditorState.setElementPath(element.path);
+      grammarEditorState.setElement(element);
       return grammarEditorState;
     } else {
       const grammarEditorState = new GrammarTextEditorState(this.editorStore);
       const grammar = getCodeSnippet(this.editorStore, element);
       grammarEditorState.setGraphGrammarText(grammar);
-      grammarEditorState.setElementName(element.name);
-      grammarEditorState.setElementPath(element.path);
+      grammarEditorState.setElement(element);
       this.currentGrammarElements.set(element.path, grammar);
       return grammarEditorState;
     }

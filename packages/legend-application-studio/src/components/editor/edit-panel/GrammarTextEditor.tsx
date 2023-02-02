@@ -20,14 +20,13 @@ import {
   type IDisposable,
   editor as monacoEditorAPI,
   languages as monacoLanguagesAPI,
+  Range,
 } from 'monaco-editor';
 import {
   ContextMenu,
   disposeEditor,
   getBaseTextEditorOptions,
   resetLineNumberGutterWidth,
-  clsx,
-  WordWrapIcon,
   getEditorValue,
   normalizeLineEnding,
   MoreHorizontalIcon,
@@ -68,7 +67,6 @@ import { flowResult } from 'mobx';
 import { useEditorStore } from '../EditorStoreProvider.js';
 import {
   guaranteeNonNullable,
-  guaranteeType,
   hasWhiteSpace,
   isNonNullable,
 } from '@finos/legend-shared';
@@ -146,13 +144,18 @@ import type { DSL_Data_LegendStudioApplicationPlugin_Extension } from '../../../
 import { LEGEND_STUDIO_APPLICATION_NAVIGATION_CONTEXT_KEY } from '../../../stores/LegendStudioApplicationNavigationContext.js';
 import type { DSL_Mapping_LegendStudioApplicationPlugin_Extension } from '../../../stores/DSL_Mapping_LegendStudioApplicationPlugin_Extension.js';
 import type { STO_Relational_LegendStudioApplicationPlugin_Extension } from '../../../stores/STO_Relational_LegendStudioApplicationPlugin_Extension.js';
-import type { GrammarTextEditorState } from '../../../stores/editor-state/GrammarTextEditorState.js';
+import {
+  getRegexString,
+  GrammarTextEditorState,
+} from '../../../stores/editor-state/GrammarTextEditorState.js';
 import {
   NewPackageableRuntimeDriver,
   NewPackageableConnectionDriver,
   NewFileGenerationDriver,
   NewDataElementDriver,
 } from '../../../stores/editor/NewElementState.js';
+
+const RENAME_FILE_COMMAND = 'RENAME_FILE_COMMAND';
 
 export const GrammarTextEditorPanelActions = observer(
   (props: { grammarTextEditorState: GrammarTextEditorState | undefined }) => {
@@ -886,6 +889,7 @@ export const GrammarTextEditor = observer(
           ...getBaseTextEditorOptions(),
           language: EDITOR_LANGUAGE.PURE,
           theme: EDITOR_THEME.LEGEND,
+          contextmenu: !editorStore.grammarModeManagerState.isInDefaultTextMode,
           renderValidationDecorations: 'on',
         });
         _editor.onDidChangeModelContent(() => {
@@ -893,11 +897,11 @@ export const GrammarTextEditor = observer(
           grammarTextEditorState.setGraphGrammarText(grammarText);
           if (
             !editorStore.grammarModeManagerState.isInDefaultTextMode &&
-            grammarTextEditorState.elementPath
+            grammarTextEditorState.element?.path
           ) {
             const grammarElement =
               editorStore.grammarModeManagerState.currentGrammarElements.get(
-                grammarTextEditorState.elementPath,
+                grammarTextEditorState.element.path,
               );
             // Not to clear errors when we force open editor during compilation check
             if (grammarElement !== grammarText) {
@@ -905,9 +909,56 @@ export const GrammarTextEditor = observer(
             }
             if (grammarElement !== undefined) {
               editorStore.grammarModeManagerState.currentGrammarElements.set(
-                grammarTextEditorState.elementPath,
+                grammarTextEditorState.element.path,
                 grammarText,
               );
+            }
+            const model = _editor.getModel();
+            const matches = model?.findMatches(
+              guaranteeNonNullable(
+                grammarTextEditorState.elementLabelRegexString,
+              ),
+              true,
+              true,
+              true,
+              null,
+              true,
+            );
+            if (!(Array.isArray(matches) && matches.length)) {
+              grammarTextEditorState.setIsElementPathInvalid(true);
+              const regex = getRegexString(editorStore.getTypeLabels());
+              const match = model?.findMatches(
+                regex,
+                true,
+                true,
+                true,
+                null,
+                true,
+              );
+              if (model && Array.isArray(match) && match.length) {
+                const range = guaranteeNonNullable(match[0]).range;
+                const errorRange = new Range(
+                  range.startLineNumber,
+                  range.endColumn,
+                  range.endLineNumber,
+                  model.getLineLength(range.startLineNumber) + 1,
+                );
+                setErrorMarkers(
+                  model,
+                  [
+                    {
+                      message: 'Please change the element path by right clicking',
+                      startLineNumber: errorRange.startLineNumber,
+                      startColumn: errorRange.startColumn,
+                      endLineNumber: errorRange.endLineNumber,
+                      endColumn: errorRange.endColumn,
+                    },
+                  ],
+                  'invalid-path',
+                );
+              }
+            } else {
+              clearMarkers('invalid-path');
             }
           }
           clearMarkers();
@@ -915,6 +966,33 @@ export const GrammarTextEditor = observer(
           // but if we do that on first load, the cursor will not jump to the current element
           // also, it's better to place that logic in an effect that watches for the regex string
         });
+
+        _editor.createContextKey(
+          RENAME_FILE_COMMAND,
+          !editorStore.grammarModeManagerState.isInDefaultTextMode,
+        );
+
+        _editor.addAction({
+          id: 'rename-file',
+          label: 'Rename file',
+          precondition: RENAME_FILE_COMMAND,
+          contextMenuGroupId: 'navigation',
+          contextMenuOrder: 1.5,
+          run: function () {
+            if (
+              grammarTextEditorState.element &&
+              grammarTextEditorState.isElementPathInvalid
+            ) {
+              clearMarkers('invalid-path');
+              editorStore.explorerTreeState.setElementToRename(
+                editorStore.graphManagerState.graph.getNullableElement(
+                  grammarTextEditorState.element.path,
+                ),
+              );
+            }
+          },
+        });
+
         _editor.focus(); // focus on the editor initially
         setEditor(_editor);
       }
@@ -986,7 +1064,7 @@ export const GrammarTextEditor = observer(
           (editorStore.grammarModeManagerState.isInDefaultTextMode
             ? true
             : error.sourceInformation.elementPath ===
-              grammarTextEditorState.elementPath)
+              grammarTextEditorState.element?.path)
         ) {
           setErrorMarkers(editorModel, [
             {
@@ -1011,7 +1089,7 @@ export const GrammarTextEditor = observer(
                   !warning.sourceInformation ||
                   (!editorStore.grammarModeManagerState.isInDefaultTextMode &&
                     warning.sourceInformation.elementPath !==
-                      grammarTextEditorState.elementPath)
+                      grammarTextEditorState.element?.path)
                 ) {
                   return undefined;
                 }
@@ -1027,8 +1105,6 @@ export const GrammarTextEditor = observer(
           );
         }
       }
-      // Disable editing if user is in viewer mode
-      editor.updateOptions({ readOnly: editorStore.isInViewerMode });
     }
 
     // hover
@@ -1210,6 +1286,51 @@ export const GrammarTextEditor = observer(
         }
       }
     }, [editor, currentElementLabelRegexString]);
+
+    useEffect(() => {
+      if (editor && grammarTextEditorState.element?.path) {
+        const model = editor.getModel();
+        const matches = model?.findMatches(
+          guaranteeNonNullable(grammarTextEditorState.elementLabelRegexString),
+          true,
+          true,
+          true,
+          null,
+          true,
+        );
+        if (!(Array.isArray(matches) && matches.length)) {
+          grammarTextEditorState.setIsElementPathInvalid(true);
+          const regex = getRegexString(editorStore.getTypeLabels());
+          const match = model?.findMatches(regex, true, true, true, null, true);
+          if (model && Array.isArray(match) && match.length) {
+            clearMarkers('invalid-path');
+            const range = guaranteeNonNullable(match[0]).range;
+            const errorRange = new Range(
+              range.startLineNumber,
+              range.endColumn,
+              range.endLineNumber,
+              model.getLineLength(range.startLineNumber) + 1,
+            );
+            setErrorMarkers(
+              model,
+              [
+                {
+                  message: 'Please change the element path by right clicking',
+                  startLineNumber: errorRange.startLineNumber,
+                  startColumn: errorRange.startColumn,
+                  endLineNumber: errorRange.endLineNumber,
+                  endColumn: errorRange.endColumn,
+                },
+              ],
+              'invalid-path',
+            );
+          }
+        } else {
+          grammarTextEditorState.setIsElementPathInvalid(false);
+          clearMarkers('invalid-path');
+        }
+      }
+    }, [editor, grammarTextEditorState.element?.path]);
 
     // NOTE: dispose the editor to prevent potential memory-leak
     useEffect(

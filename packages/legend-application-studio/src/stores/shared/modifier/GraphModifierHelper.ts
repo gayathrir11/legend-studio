@@ -89,3 +89,15 @@ export const graph_renameElement = action(
     }
   },
 );
+
+export const graph_renameElementInTextMode = action(
+  (
+    graph: PureModel,
+    element: PackageableElement,
+    newPath: string,
+    context: ObserverContext,
+  ): void => {
+    graph.renameElement(element, newPath);
+  },
+);
+

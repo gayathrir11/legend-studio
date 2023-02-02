@@ -185,7 +185,7 @@ export class GrammarEditorTabManagerState extends EditorTabManagerState {
         const existingGrammarElementState = this.tabs.find(
           (state) =>
             state instanceof GrammarTextEditorState &&
-            state.elementPath === element.path,
+            state.element?.path === element.path,
         );
         const elementState =
           existingGrammarElementState ??
@@ -254,6 +254,6 @@ export class GrammarEditorTabManagerState extends EditorTabManagerState {
     this.tabs.find(
       (editorState) =>
         editorState instanceof GrammarTextEditorState &&
-        editorState.elementPath === tabElementPath,
+        editorState.element?.path === tabElementPath,
     );
 }
