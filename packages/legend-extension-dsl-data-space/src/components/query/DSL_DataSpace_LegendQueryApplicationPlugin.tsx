@@ -25,6 +25,7 @@ import {
   LegendQueryEventHelper,
   createViewProjectHandler,
   createViewSDLCProjectHandler,
+  type QueryDecorator,
 } from '@finos/legend-application-query';
 import { SquareIcon } from '@finos/legend-art';
 import {
@@ -37,7 +38,10 @@ import {
   generateDataSpaceQuerySetupRoute,
 } from '../../__lib__/query/DSL_DataSpace_LegendQueryNavigation.js';
 import { DataSpaceQueryCreator } from './DataSpaceQueryCreator.js';
-import { createQueryDataSpaceTaggedValue } from '../../stores/query/DataSpaceQueryCreatorStore.js';
+import {
+  createQueryClassTaggedValue,
+  createQueryDataSpaceTaggedValue,
+} from '../../stores/query/DataSpaceQueryCreatorStore.js';
 import { Query, isValidFullPath } from '@finos/legend-graph';
 import {
   QUERY_PROFILE_PATH,
@@ -49,7 +53,12 @@ import {
 } from '../../stores/query/DataSpaceQueryBuilderState.js';
 import type { DataSpaceInfo } from '../../stores/query/DataSpaceInfo.js';
 import { getOwnDataSpace } from '../../graph-manager/DSL_DataSpace_GraphManagerHelper.js';
-import { assertErrorThrown, LogEvent, uuid } from '@finos/legend-shared';
+import {
+  assertErrorThrown,
+  guaranteeNonNullable,
+  LogEvent,
+  uuid,
+} from '@finos/legend-shared';
 import type { QueryBuilderState } from '@finos/legend-query-builder';
 import { DataSpaceQuerySetup } from './DataSpaceQuerySetup.js';
 import { DSL_DataSpace_getGraphManagerExtension } from '../../graph-manager/protocol/pure/DSL_DataSpace_PureGraphManagerExtension.js';
@@ -74,6 +83,21 @@ export class DSL_DataSpace_LegendQueryApplicationPlugin extends LegendQueryAppli
         key: 'data-space-query-editor-application-page',
         addressPatterns: [DATA_SPACE_QUERY_ROUTE_PATTERN.CREATE],
         renderer: DataSpaceQueryCreator,
+      },
+    ];
+  }
+
+  override getExtraQueryDecorators(): QueryDecorator[] {
+    return [
+      (query: Query, queryBuilderState: QueryBuilderState) => {
+        if (queryBuilderState instanceof DataSpaceQueryBuilderState) {
+          query.taggedValues = [
+            createQueryDataSpaceTaggedValue(queryBuilderState.dataSpace.path),
+            createQueryClassTaggedValue(
+              guaranteeNonNullable(queryBuilderState.class).path,
+            ),
+          ];
+        }
       },
     ];
   }

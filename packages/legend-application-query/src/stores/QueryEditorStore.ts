@@ -60,7 +60,6 @@ import {
   type GraphInitializationReport,
   reportGraphAnalytics,
   cloneQueryStereotype,
-  cloneQueryTaggedValue,
 } from '@finos/legend-graph';
 import {
   EXTERNAL_APPLICATION_NAVIGATION__generateStudioProjectViewUrl,
@@ -218,9 +217,6 @@ export class QueryCreatorState {
       if (this.originalQuery) {
         query.stereotypes =
           this.originalQuery.stereotypes?.map(cloneQueryStereotype);
-        query.taggedValues = this.originalQuery.taggedValues?.map(
-          cloneQueryTaggedValue,
-        );
       }
       const newQuery =
         (yield this.editorStore.graphManagerState.graphManager.createQuery(
@@ -1110,6 +1106,12 @@ export class ExistingQueryEditorStore extends QueryEditorStore {
         query.groupId = this.lightQuery.groupId;
         query.artifactId = this.lightQuery.artifactId;
         query.versionId = this.lightQuery.versionId;
+        const existingQueryDecorators = this.applicationStore.pluginManager
+          .getApplicationPlugins()
+          .flatMap((plugin) => plugin.getExtraQueryDecorators?.() ?? []);
+        for (const decorator of existingQueryDecorators) {
+          decorator(query, guaranteeNonNullable(this.queryBuilderState));
+        }
       },
       onQueryUpdate: (query: Query): void => {
         this.setLightQuery(toLightQuery(query));

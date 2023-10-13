@@ -72,6 +72,11 @@ export type QueryEditorHelpMenuActionConfiguration = {
   icon?: React.ReactNode;
 };
 
+export type QueryDecorator = (
+  query: Query,
+  queryBuilderState: QueryBuilderState,
+) => void;
+
 export abstract class LegendQueryApplicationPlugin extends LegendApplicationPlugin {
   /**
    * This helps to better type-check for this empty abtract type
@@ -104,4 +109,9 @@ export abstract class LegendQueryApplicationPlugin extends LegendApplicationPlug
   getExtraQueryEditorActionConfigurations?(
     editorStore: QueryEditorStore,
   ): QueryEditorActionConfiguration[];
+
+  /**
+   * Get the list of extra query decorators.
+   */
+  getExtraQueryDecorators?(): QueryDecorator[];
 }
