@@ -586,10 +586,7 @@ export const addQueryParametersToUrl = (
   val: string | undefined,
 ): string => (val ? `${url}?${val}` : url);
 
-export const buildUrl = (parts: string[]): string =>
-  parts
-    .map((part) => part.replaceAll(/^\/+/g, '').replaceAll(/\/+$/g, ''))
-    .join(URL_SEPARATOR);
+export const buildUrl = (parts: string[]): string => '';
 
 export const sanitizeURL = (val: string): string => sanitizeUrl(val);
 

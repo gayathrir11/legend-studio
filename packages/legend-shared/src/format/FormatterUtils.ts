@@ -21,7 +21,6 @@ import {
   parse as losslessParse,
   isSafeNumber as lossIsSafeNumber,
 } from 'lossless-json';
-import CSVParser from 'papaparse';
 import { assertNonNullable } from '../error/AssertionUtils.js';
 
 export const capitalize = (value: string): string =>
@@ -121,39 +120,39 @@ export const tryToMinifyJSONString = (value: string): string => {
  *       Three
  * will still equal 3 elements (['One, Comma in One', 'Two', 'Three']) rather than 4
  */
-export const parseCSVString = (value: string): string[] | undefined => {
-  let parseData;
-  if (value.includes('\n')) {
-    parseData = value.trim().split(/\r?\n|\r|\n/g);
-    return parseData;
-  } else {
-    const parseResult = CSVParser.parse<string[]>(value.trim(), {
-      delimiter: ',',
-    });
-    parseData = parseResult.data.flat();
-    if (parseResult.errors.length) {
-      // if (
-      //   parseResult.errors[0] &&
-      //   parseResult.errors[0].code === 'UndetectableDelimiter' &&
-      //   parseResult.errors[0].type === 'Delimiter' &&
-      //   parseResult.data.length === 1
-      // ) {
-      //   // NOTE: this happens when the user only put one item in the value input
-      //   // we can go the other way by ensure the input has a comma but this is arguably neater
-      //   // as it tinkers with the parser
-      // } else {
-      //   // there were some parsing error, escape
-      //   // NOTE: ideally, we could show a warning here
-      // }
-      return undefined;
-    } else {
-      return parseData;
-    }
-  }
-};
-
+export const parseCSVString = (value: string): string[] | undefined =>
+  // let parseData;
+  // if (value.includes('\n')) {
+  //   parseData = value.trim().split(/\r?\n|\r|\n/g);
+  //   return parseData;
+  // } else {
+  //   const parseResult = CSVParser.parse<string[]>(value.trim(), {
+  //     delimiter: ',',
+  //   });
+  //   parseData = parseResult.data.flat();
+  //   if (parseResult.errors.length) {
+  //     // if (
+  //     //   parseResult.errors[0] &&
+  //     //   parseResult.errors[0].code === 'UndetectableDelimiter' &&
+  //     //   parseResult.errors[0].type === 'Delimiter' &&
+  //     //   parseResult.data.length === 1
+  //     // ) {
+  //     //   // NOTE: this happens when the user only put one item in the value input
+  //     //   // we can go the other way by ensure the input has a comma but this is arguably neater
+  //     //   // as it tinkers with the parser
+  //     // } else {
+  //     //   // there were some parsing error, escape
+  //     //   // NOTE: ideally, we could show a warning here
+  //     // }
+  //     return undefined;
+  //   } else {
+  //     return parseData;
+  //   }
+  // }
+  ['hel'];
 export const csvStringify = (value: unknown[]): string =>
-  CSVParser.unparse(value);
+  // CSVParser.unparse(value);
+  '';
 
 /**
  * One very common use case is that we get the JSON as response from the server than we will convert this to a string and persist

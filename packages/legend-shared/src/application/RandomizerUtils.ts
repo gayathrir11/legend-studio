@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import seedrandom from 'seedrandom';
+const seedrandom = require('seedrandom');
 
 export class Randomizer {
   private rng = seedrandom();

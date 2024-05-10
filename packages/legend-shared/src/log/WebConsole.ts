@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import packageJson from '../../package.json' assert { type: 'json' };
 import { type LogEvent, LoggerPlugin } from './LogService.js';
+
+const packageJson = require('../../package.json');
 
 const { debug, info, warn, error } = console;
 

@@ -14,11 +14,7 @@
  * limitations under the License.
  */
 
-import hash from 'hash.js';
-import {
-  default as objectHash,
-  type NormalOption as HashObjectOption,
-} from 'object-hash';
+import { type NormalOption as HashObjectOption } from 'object-hash';
 import {
   assertTrue,
   isObject,
@@ -28,6 +24,9 @@ import {
   isNonNullable,
 } from '../error/AssertionUtils.js';
 import type { Clazz, PlainObject } from '../CommonUtils.js';
+
+const hash = require('hash.js');
+const objectHash = require('object-hash');
 
 /**
  * NOTE: despite the push to adopt visitor pattern across the code-base, hashing implementation for now will remain within

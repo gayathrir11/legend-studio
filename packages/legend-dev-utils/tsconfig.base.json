@@ -8,7 +8,7 @@
     "sourceMap": true,
     // Module settings
     "target": "esnext",
-    "module": "NodeNext",
+    "module": "ESNext",
     "skipLibCheck": true, // skip type checking of all declaration files (*.d.ts)
     "resolveJsonModule": true, // include JSON files module and auto-interpret types
     "verbatimModuleSyntax": true,

@@ -29,8 +29,6 @@
  * --verbatimModuleSyntax flag, so we have to use CommonJS syntax in this file
  * See https://devblogs.microsoft.com/typescript/announcing-typescript-5-0/#verbatimmodulesyntax
  */
-import Fuse = require('fuse.js');
+const Fuse = require('fuse.js');
 
-export = {
-  Fuse,
-};
+export { Fuse };
